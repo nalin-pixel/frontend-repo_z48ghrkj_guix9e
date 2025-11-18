@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react'
 
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export default function Weekly({ classesPerDay, weeklyState, toggleAttendance }) {
+export default function Weekly({ classesPerDay, weeklyState, toggleAttendance, weekPrefix }) {
   const layout = useMemo(() => days.map((d) => d), [])
 
   return (
@@ -15,7 +15,7 @@ export default function Weekly({ classesPerDay, weeklyState, toggleAttendance })
           </div>
           <div className="flex flex-wrap gap-3">
             {Array.from({ length: classesPerDay }).map((_, i) => {
-              const key = `${day}-${i}`
+              const key = `${weekPrefix || 'default'}:${day}-${i}`
               const checked = weeklyState[key] || false
               return (
                 <label

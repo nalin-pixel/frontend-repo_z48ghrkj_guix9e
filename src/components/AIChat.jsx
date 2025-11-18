@@ -1,73 +1,88 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 export default function AIChat({ totalClasses, attended, requiredPercent, setRequiredPercent }) {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi! Ask me anything about your attendance. Try: "How many classes can I skip?"' },
+    { role: 'assistant', content: 'Hi! Ask me: "How many can I skip?", "How many to reach 80%?", or "Set required to 75".' },
   ])
   const [input, setInput] = useState('')
 
   const currentPercent = totalClasses > 0 ? (attended / totalClasses) * 100 : 0
+  const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1)
 
-  function calcCanSkip(att, total, req) {
-    const v = att / (req / 100 || 1) - total
-    return Math.floor(Math.max(v, 0))
+  function canSkip(att, total, req) {
+    if (req <= 0) return att
+    const v = att / (req / 100) - total
+    return Math.max(Math.floor(v), 0)
   }
 
-  function calcNeedToAttend(att, total, req) {
-    const v = (req * total) / 100 - att
-    return Math.ceil(Math.max(v, 0))
+  function needToReach(att, total, req) {
+    if (req <= 0) return 0
+    const target = (req * total) / 100
+    const v = target - att
+    return Math.max(Math.ceil(v), 0)
   }
 
   function replyTo(q) {
-    const text = q.toLowerCase()
+    const text = q.toLowerCase().replace(/\?/g, ' ').trim()
 
-    // detect intent
-    if (text.includes('skip')) {
-      const n = calcCanSkip(attended, totalClasses, requiredPercent)
+    // set/change required like: set required to 80, change required 70%, set 65%
+    const set1 = text.match(/(set|change|update)\s*(required|requirement|target|goal)?\s*(to)?\s*(\d{1,3})%?/)
+    if (set1) {
+      const t = Math.max(0, Math.min(100, Number(set1[4])))
+      setRequiredPercent(t)
+      return `Okay, I set your required percentage to ${t}%.`
+    }
+    const set2 = text.match(/(\d{1,3})%?\s*(required|target|goal)/)
+    if (set2) {
+      const t = Math.max(0, Math.min(100, Number(set2[1])))
+      setRequiredPercent(t)
+      return `Got it, updated required to ${t}%.`
+    }
+
+    // can I skip
+    if (/\bskip\b/.test(text)) {
+      const n = canSkip(attended, totalClasses, requiredPercent)
       return `You can skip up to ${n} class${n === 1 ? '' : 'es'} and still stay at or above ${requiredPercent}%.`
     }
 
-    if (text.match(/reach\s*(\d+)%/)) {
-      const m = text.match(/reach\s*(\d+)%/)
-      const target = Number(m[1])
-      const need = calcNeedToAttend(attended, totalClasses, target)
-      return `To reach ${target}%, you need to attend ${need} more class${need === 1 ? '' : 'es'}.`
+    // reach X%
+    const reach = text.match(/reach\s*(\d{1,3})%?/)
+    if (reach) {
+      const t = Math.max(0, Math.min(100, Number(reach[1])))
+      const need = needToReach(attended, totalClasses, t)
+      return `To reach ${t}%, you need to attend ${need} more class${need === 1 ? '' : 'es'}.`
     }
 
-    if (text.match(/set|change|required/)) {
-      const m = text.match(/(\d+)%/)
-      if (m) {
-        const target = Number(m[1])
-        setRequiredPercent(target)
-        return `Okay, I set your required percentage to ${target}%. All insights updated.`
-      }
-      return 'Tell me the percentage you want, e.g., "Set required to 80%".'
-    }
-
-    if (text.includes('percent') || text.includes('percentage')) {
-      return `You're currently at ${(Math.round(currentPercent * 10) / 10).toFixed(1)}%. Required is ${requiredPercent}%.`
-    }
-
-    if (text.includes('need')) {
-      const need = calcNeedToAttend(attended, totalClasses, requiredPercent)
+    // how many do I need
+    if (text.includes('need') || /how many.*(attend|get|reach)/.test(text)) {
+      const need = needToReach(attended, totalClasses, requiredPercent)
       return `You need ${need} more class${need === 1 ? '' : 'es'} to reach ${requiredPercent}%.`
     }
 
-    return 'I can help with skipping capacity, required percentage, and progress. Try asking: "How many classes can I skip?"'
+    if (text.includes('percent') || text.includes('percentage') || text.includes('status') || text.includes('current')) {
+      return `You're currently at ${p1(currentPercent)}%. Required is ${requiredPercent}%. Attended ${attended}/${totalClasses}.`
+    }
+
+    return 'Try: "How many can I skip?", "How many to reach 80%?", or "Set required to 75".'
   }
 
   function send() {
     const trimmed = input.trim()
     if (!trimmed) return
-    const userMsg = { role: 'user', content: trimmed }
-    const botMsg = { role: 'assistant', content: replyTo(trimmed) }
-    setMessages((m) => [...m, userMsg, botMsg])
+    const user = { role: 'user', content: trimmed }
+    const bot = { role: 'assistant', content: replyTo(trimmed) }
+    setMessages((m) => [...m, user, bot])
     setInput('')
   }
 
+  useEffect(() => {
+    const el = document.getElementById('chat-scroll')
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages])
+
   return (
     <div className="rounded-2xl bg-slate-800/60 border border-white/10 p-6 grid grid-rows-[1fr_auto] h-[420px]">
-      <div className="overflow-y-auto space-y-3 pr-1">
+      <div id="chat-scroll" className="overflow-y-auto space-y-3 pr-1">
         {messages.map((m, idx) => (
           <div
             key={idx}

@@ -6,8 +6,22 @@ import Tabs from './components/Tabs'
 import Weekly from './components/Weekly'
 import Insights from './components/Insights'
 import AIChat from './components/AIChat'
+import WeekPicker from './components/WeekPicker'
 
 const LS_KEY = 'smart-attendance-state-v1'
+
+function toISODate(d) {
+  const tz = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  return tz.toISOString().slice(0, 10)
+}
+
+function getMonday(date) {
+  const d = new Date(date)
+  const day = d.getDay() || 7
+  if (day !== 1) d.setDate(d.getDate() - (day - 1))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
 
 export default function App() {
   const [classesPerDay, setClassesPerDay] = useState(4)
@@ -16,6 +30,7 @@ export default function App() {
   const [requiredPercent, setRequiredPercent] = useState(75)
   const [weeklyState, setWeeklyState] = useState({})
   const [activeTab, setActiveTab] = useState('weekly')
+  const [weekStartISO, setWeekStartISO] = useState(() => toISODate(getMonday(new Date())))
 
   // load from localStorage
   useEffect(() => {
@@ -29,6 +44,7 @@ export default function App() {
         setRequiredPercent(s.requiredPercent ?? 75)
         setWeeklyState(s.weeklyState ?? {})
         setActiveTab(s.activeTab ?? 'weekly')
+        setWeekStartISO(s.weekStartISO ?? toISODate(getMonday(new Date())))
       }
     } catch {}
   }, [])
@@ -42,9 +58,10 @@ export default function App() {
       requiredPercent,
       weeklyState,
       activeTab,
+      weekStartISO,
     }
     localStorage.setItem(LS_KEY, JSON.stringify(state))
-  }, [classesPerDay, totalClasses, attended, requiredPercent, weeklyState, activeTab])
+  }, [classesPerDay, totalClasses, attended, requiredPercent, weeklyState, activeTab, weekStartISO])
 
   // ensure invariants: attended <= total
   useEffect(() => {
@@ -66,10 +83,6 @@ export default function App() {
       } else if (already && !checked) {
         deltaTotal = -1
         deltaAtt = -1
-      } else if (!already && !checked) {
-        // nothing
-      } else if (already && checked) {
-        // nothing
       }
 
       // update counters
@@ -97,10 +110,13 @@ export default function App() {
             setRequiredPercent={setRequiredPercent}
           />
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Tabs active={activeTab} onChange={setActiveTab} />
-            <div className="text-sm text-sky-200/70">
-              Current: <span className="text-white font-semibold">{Math.round(currentPercent * 10) / 10}%</span>
+            <div className="flex items-center gap-4">
+              <WeekPicker weekStartISO={weekStartISO} onChange={setWeekStartISO} />
+              <div className="text-sm text-sky-200/70">
+                Current: <span className="text-white font-semibold">{Math.round(currentPercent * 10) / 10}%</span>
+              </div>
             </div>
           </div>
 
@@ -109,6 +125,7 @@ export default function App() {
               classesPerDay={classesPerDay}
               weeklyState={weeklyState}
               toggleAttendance={toggleAttendance}
+              weekPrefix={weekStartISO}
             />
           )}
 
