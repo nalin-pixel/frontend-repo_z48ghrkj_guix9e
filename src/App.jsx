@@ -1,73 +1,140 @@
-function App() {
+import React, { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
+import HeaderHero from './components/HeaderHero'
+import StatsBar from './components/StatsBar'
+import Tabs from './components/Tabs'
+import Weekly from './components/Weekly'
+import Insights from './components/Insights'
+import AIChat from './components/AIChat'
+
+const LS_KEY = 'smart-attendance-state-v1'
+
+export default function App() {
+  const [classesPerDay, setClassesPerDay] = useState(4)
+  const [totalClasses, setTotalClasses] = useState(0)
+  const [attended, setAttended] = useState(0)
+  const [requiredPercent, setRequiredPercent] = useState(75)
+  const [weeklyState, setWeeklyState] = useState({})
+  const [activeTab, setActiveTab] = useState('weekly')
+
+  // load from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) {
+        const s = JSON.parse(raw)
+        setClassesPerDay(s.classesPerDay ?? 4)
+        setTotalClasses(s.totalClasses ?? 0)
+        setAttended(s.attended ?? 0)
+        setRequiredPercent(s.requiredPercent ?? 75)
+        setWeeklyState(s.weeklyState ?? {})
+        setActiveTab(s.activeTab ?? 'weekly')
+      }
+    } catch {}
+  }, [])
+
+  // persist to localStorage
+  useEffect(() => {
+    const state = {
+      classesPerDay,
+      totalClasses,
+      attended,
+      requiredPercent,
+      weeklyState,
+      activeTab,
+    }
+    localStorage.setItem(LS_KEY, JSON.stringify(state))
+  }, [classesPerDay, totalClasses, attended, requiredPercent, weeklyState, activeTab])
+
+  // ensure invariants: attended <= total
+  useEffect(() => {
+    if (attended > totalClasses) setAttended(totalClasses)
+  }, [totalClasses])
+
+  const currentPercent = useMemo(() => (totalClasses > 0 ? (attended / totalClasses) * 100 : 0), [attended, totalClasses])
+
+  function toggleAttendance(key, checked) {
+    setWeeklyState((prev) => {
+      const already = !!prev[key]
+      // compute deltas
+      let deltaTotal = 0
+      let deltaAtt = 0
+
+      if (!already && checked) {
+        deltaTotal = 1
+        deltaAtt = 1
+      } else if (already && !checked) {
+        deltaTotal = -1
+        deltaAtt = -1
+      } else if (!already && !checked) {
+        // nothing
+      } else if (already && checked) {
+        // nothing
+      }
+
+      // update counters
+      setTotalClasses((t) => Math.max(0, t + deltaTotal))
+      setAttended((a) => Math.max(0, a + deltaAtt))
+
+      return { ...prev, [key]: checked }
+    })
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_50%)]"></div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-sky-100">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-10 space-y-8">
+        <HeaderHero />
 
-      <div className="relative min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Header with Flames icon */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center mb-6">
-              <img
-                src="/flame-icon.svg"
-                alt="Flames"
-                className="w-24 h-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]"
-              />
-            </div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-4">
+          <StatsBar
+            classesPerDay={classesPerDay}
+            setClassesPerDay={setClassesPerDay}
+            totalClasses={totalClasses}
+            setTotalClasses={setTotalClasses}
+            attended={attended}
+            setAttended={setAttended}
+            requiredPercent={requiredPercent}
+            setRequiredPercent={setRequiredPercent}
+          />
 
-            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-              Flames Blue
-            </h1>
-
-            <p className="text-xl text-blue-200 mb-6">
-              Build applications through conversation
-            </p>
-          </div>
-
-          {/* Instructions */}
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-xl mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Describe your idea</h3>
-                <p className="text-blue-200/80 text-sm">Use the chat panel on the left to tell the AI what you want to build</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Watch it build</h3>
-                <p className="text-blue-200/80 text-sm">Your app will appear in this preview as the AI generates the code</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Refine and iterate</h3>
-                <p className="text-blue-200/80 text-sm">Continue the conversation to add features and make changes</p>
-              </div>
+          <div className="flex items-center justify-between">
+            <Tabs active={activeTab} onChange={setActiveTab} />
+            <div className="text-sm text-sky-200/70">
+              Current: <span className="text-white font-semibold">{Math.round(currentPercent * 10) / 10}%</span>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-sm text-blue-300/60">
-              No coding required • Just describe what you want
-            </p>
-          </div>
-        </div>
+          {activeTab === 'weekly' && (
+            <Weekly
+              classesPerDay={classesPerDay}
+              weeklyState={weeklyState}
+              toggleAttendance={toggleAttendance}
+            />
+          )}
+
+          {activeTab === 'insights' && (
+            <Insights
+              totalClasses={totalClasses}
+              attended={attended}
+              requiredPercent={requiredPercent}
+            />
+          )}
+
+          {activeTab === 'chat' && (
+            <AIChat
+              totalClasses={totalClasses}
+              attended={attended}
+              requiredPercent={requiredPercent}
+              setRequiredPercent={setRequiredPercent}
+            />
+          )}
+        </motion.div>
+      </div>
+
+      {/* glow backdrop */}
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="absolute left-1/2 -translate-x-1/2 top-20 h-[600px] w-[900px] rounded-full blur-3xl opacity-30 bg-[radial-gradient(closest-side,rgba(56,189,248,0.35),transparent)]" />
       </div>
     </div>
   )
 }
-
-export default App
